@@ -671,6 +671,10 @@ static PyObject * pycsp_buffer_remaining(PyObject * self, PyObject * args) {
 	return Py_BuildValue("i", csp_buffer_remaining());
 }
 
+static PyObject * pycsp_buffer_remaining_lowest_rec(PyObject * self, PyObject * args) {
+	return Py_BuildValue("I", csp_buffer_remaining_lowest_rec());
+}
+
 static PyObject * pycsp_cmp_ident(PyObject * self, PyObject * args) {
 	uint16_t node;
 	uint32_t timeout = 1000;
@@ -983,6 +987,7 @@ static PyMethodDef methods[] = {
 	{"buffer_free", pycsp_buffer_free, METH_VARARGS, ""},
 	{"buffer_get", pycsp_buffer_get, METH_VARARGS, ""},
 	{"buffer_remaining", pycsp_buffer_remaining, METH_NOARGS, ""},
+	{"buffer_remaining_lowest_rec", pycsp_buffer_remaining_lowest_rec, METH_NOARGS, ""},
 
 	/* csp/csp_cmp.h */
 	{"cmp_ident", pycsp_cmp_ident, METH_VARARGS, ""},

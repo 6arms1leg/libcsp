@@ -1,5 +1,7 @@
 #include <csp/csp_buffer.h>
 
+#include <stdatomic.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <csp/arch/csp_queue.h>
@@ -18,6 +20,23 @@ typedef struct csp_skbf_s {
 // Queue of free CSP buffers
 static csp_queue_handle_t csp_buffers;
 
+#if (ATOMIC_INT_LOCK_FREE == 2)
+/* Tracker for lowest recording of remaining buffers ("low water mark") */
+static atomic_uint csp_buffers_remaining_lowest_rec;
+
+/* Update low water mark */
+static void csp_buffer_remaining_lowest_rec_update(const int csp_buffer_remaining) {
+	if ((0 <= csp_buffer_remaining) &&
+	    ((unsigned int)csp_buffer_remaining < csp_buffers_remaining_lowest_rec)) {  // TODO: Fix race condition.
+		csp_buffers_remaining_lowest_rec = (unsigned int)csp_buffer_remaining;
+	}
+}
+
+unsigned int csp_buffer_remaining_lowest_rec(void) {
+	return csp_buffers_remaining_lowest_rec;
+}
+#endif /* (ATOMIC_INT_LOCK_FREE == 2) */
+
 void csp_buffer_init(void) {
 	/**
 	 * Chunk of memory allocated for CSP buffers:
@@ -34,6 +53,11 @@ void csp_buffer_init(void) {
 		csp_skbf_t * bufptr = &csp_buffer_pool[i];
 		csp_queue_enqueue(csp_buffers, &bufptr, 0);
 	}
+
+#if (ATOMIC_INT_LOCK_FREE == 2)
+	/* Init. low water mark */
+	csp_buffers_remaining_lowest_rec = CSP_BUFFER_COUNT;
+#endif /* (ATOMIC_INT_LOCK_FREE == 2) */
 }
 
 static csp_packet_t * csp_packet_init(csp_packet_t * packet)
@@ -74,6 +98,10 @@ static csp_packet_t * csp_buffer_get_actual(int reserve, int isr) {
 	} else {
 		csp_queue_dequeue(csp_buffers, &buf, 0);
 	}
+
+#if (ATOMIC_INT_LOCK_FREE == 2)
+	csp_buffer_remaining_lowest_rec_update(remain);
+#endif /* (ATOMIC_INT_LOCK_FREE == 2) */
 
 	/* We might be out of buffers */
 	if (buf == NULL) {
@@ -117,6 +145,10 @@ void csp_buffer_free_isr(void * packet) {
 
 	int task_woken = 0;
 	csp_queue_enqueue_isr(csp_buffers, &buf, &task_woken);
+
+#if (ATOMIC_INT_LOCK_FREE == 2)
+	csp_buffer_remaining_lowest_rec_update(csp_queue_size_isr(csp_buffers));
+#endif /* (ATOMIC_INT_LOCK_FREE == 2) */
 }
 
 void csp_buffer_free(void * packet) {
@@ -144,6 +176,10 @@ void csp_buffer_free(void * packet) {
 	}
 
 	csp_queue_enqueue(csp_buffers, &buf, 0);
+
+#if (ATOMIC_INT_LOCK_FREE == 2)
+	csp_buffer_remaining_lowest_rec_update(csp_queue_size(csp_buffers));
+#endif /* (ATOMIC_INT_LOCK_FREE == 2) */
 }
 
 csp_packet_t * csp_buffer_clone(const csp_packet_t * packet) {

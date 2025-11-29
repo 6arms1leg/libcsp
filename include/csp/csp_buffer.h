@@ -5,6 +5,8 @@
  ****************************************************************************/
 #pragma once
 
+#include <stdatomic.h>
+
 #include <csp/csp_types.h>
 
 #ifdef __cplusplus
@@ -77,6 +79,15 @@ void csp_buffer_copy(const csp_packet_t * src, csp_packet_t * dst);
  * @return number of remaining/free buffers
  */
 int csp_buffer_remaining(void);
+
+#if (ATOMIC_INT_LOCK_FREE == 2)
+/**
+ * Get lowest recording of remaining buffers ("low water mark").
+ *
+ * @return number of lowest recording of remaining buffers ("low water mark")
+ */
+unsigned int csp_buffer_remaining_lowest_rec(void);
+#endif /* (ATOMIC_INT_LOCK_FREE == 2) */
 
 void csp_buffer_init(void);
 
